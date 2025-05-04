@@ -15,6 +15,10 @@ open class OpenAIRealtimeSession {
     private var continuation: AsyncStream<OpenAIRealtimeMessage>.Continuation?
     let sessionConfiguration: OpenAIRealtimeSessionConfiguration
 
+    // Ping timer properties
+    private var pingTimer: Timer?
+    private let pingInterval: TimeInterval = 30 // Seconds
+    
     init(
         webSocketTask: URLSessionWebSocketTask,
         sessionConfiguration: OpenAIRealtimeSessionConfiguration
@@ -61,6 +65,7 @@ open class OpenAIRealtimeSession {
         self.continuation?.finish()
         self.continuation = nil
         self.webSocketTask.cancel()
+        self.pingTimer?.invalidate() // Invalidate the ping timer
     }
 
     /// Tells the websocket task to receive a new message
@@ -79,6 +84,31 @@ open class OpenAIRealtimeSession {
         }
     }
 
+    // MARK: - Ping/Pong Mechanism
+    private func startPing() {
+        DispatchQueue.main.async {
+            self.pingTimer?.invalidate()
+            self.pingTimer = Timer.scheduledTimer(withTimeInterval: self.pingInterval, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                if self.isTearingDown { return }
+                self.sendPing()
+            }
+        }
+    }
+    
+    private func sendPing() {
+        webSocketTask.sendPing { [weak self] error in
+            guard let self = self else { return }
+            if let error = error {
+                print("Error sending ping: \(error.localizedDescription)")
+                self.pingTimer?.invalidate()
+                self.disconnect()
+            } else {
+                print("Ping sent successfully")
+            }
+        }
+    }
+    
     /// Handles socket errors. We disconnect on all errors.
     private func didReceiveWebSocketError(_ error: NSError) {
         guard !isTearingDown else {
@@ -136,6 +166,10 @@ open class OpenAIRealtimeSession {
         case "response.audio.delta":
             if let base64Audio = json["delta"] as? String {
                 self.continuation?.yield(.responseAudioDelta(base64Audio))
+            }
+        case "response.audio_transcript.delta":
+            if let d = json["delta"] as? String {
+                print(d)
             }
         case "response.created":
             self.continuation?.yield(.responseCreated)
