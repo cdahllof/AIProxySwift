@@ -24,9 +24,9 @@ public extension OpenAIRealtimeConversationItemCreate {
         public let role: String
         public let content: [Content]
 
-        public init(role: String, text: String) {
+        public init(role: String, audio: String) {
             self.role = role
-            self.content = [.init(text: text)]
+            self.content = [.init(audio: audio)]
         }
     }
 }
@@ -34,11 +34,11 @@ public extension OpenAIRealtimeConversationItemCreate {
 // MARK: -
 public extension OpenAIRealtimeConversationItemCreate.Item {
     struct Content: Encodable {
-        public let type = "input_text"
-        public let text: String
+        public let type = "input_audio"
+        public let audio: String
 
-        public init(text: String) {
-            self.text = text
+        public init(audio: String) {
+            self.audio = audio
         }
     }
 }
