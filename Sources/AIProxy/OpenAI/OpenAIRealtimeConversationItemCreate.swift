@@ -43,7 +43,7 @@ public extension OpenAIRealtimeConversationItemCreate.Item {
     }
 }
 
-public struct RealtimeConversationItemCreateText: Encodable {
+public struct OpenAIRealtimeConversationItemCreateText: Encodable {
     public let type = "conversation.item.create"
     public let item: Item
     
@@ -53,7 +53,7 @@ public struct RealtimeConversationItemCreateText: Encodable {
 }
 
 // MARK: - ConversationItemCreateText.Item
-public extension RealtimeConversationItemCreateText {
+public extension OpenAIRealtimeConversationItemCreateText {
     struct Item: Encodable {
         public let type = "message"
         public let role: String
@@ -67,7 +67,7 @@ public extension RealtimeConversationItemCreateText {
 }
 
 // MARK: - ConversationItemCreateText.Item.Content
-public extension RealtimeConversationItemCreateText.Item {
+public extension OpenAIRealtimeConversationItemCreateText.Item {
     struct Content: Encodable {
         public let type =  "input_text"
         public let text: String
