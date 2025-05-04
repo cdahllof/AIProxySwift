@@ -171,6 +171,11 @@ open class OpenAIRealtimeSession {
             if let d = json["delta"] as? String {
                 print(d)
             }
+        case "response.audio_transcript.done":
+            if let transcript = json["transcript"] as? String {
+                //vm!.appendRavenTranscript(transcriptRaven: transcipt)
+                print(transcript)
+            }
         case "response.created":
             self.continuation?.yield(.responseCreated)
         case "input_audio_buffer.speech_started":
