@@ -42,3 +42,38 @@ public extension OpenAIRealtimeConversationItemCreate.Item {
         }
     }
 }
+
+public struct RealtimeConversationItemCreateText: Encodable {
+    public let type = "conversation.item.create"
+    public let item: Item
+    
+    public init(item: Item) {
+        self.item = item
+    }
+}
+
+// MARK: - ConversationItemCreateText.Item
+public extension RealtimeConversationItemCreateText {
+    struct Item: Encodable {
+        public let type = "message"
+        public let role: String
+        let content: [Content]
+        
+        public init(role: String, text: String) {
+            self.role = role
+            self.content = [.init(text: text)]
+        }
+    }
+}
+
+// MARK: - ConversationItemCreateText.Item.Content
+public extension RealtimeConversationItemCreateText.Item {
+    struct Content: Encodable {
+        public let type =  "input_text"
+        public let text: String
+        
+        public init(text: String) {
+            self.text = text
+        }
+    }
+}
