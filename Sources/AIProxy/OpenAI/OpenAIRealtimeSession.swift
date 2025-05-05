@@ -173,7 +173,7 @@ open class OpenAIRealtimeSession {
             }
         case "response.audio_transcript.done":
             if let transcript = json["transcript"] as? String {
-                //vm!.appendRavenTranscript(transcriptRaven: transcipt)
+                self.continuation?.yield(.responseTranscriptDone(transcript))
                 print(transcript)
             }
         case "response.created":
