@@ -185,6 +185,10 @@ open class OpenAIRealtimeSession {
                let arguments = json["arguments"] as? String {
                 self.continuation?.yield(.responseFunctionCallArgumentsDone(name, arguments))
             }
+        case "response.done":
+            self.continuation?.yield(.responseDone)
+        case "response.audio.done":
+            self.continuation?.yield(.responseAudioDone)
         default:
             break
         }
