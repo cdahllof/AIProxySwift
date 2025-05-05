@@ -145,15 +145,68 @@ open class AudioPCMPlayer {
         }
         #endif
 
+        
         self.playerNode.scheduleBuffer(outPCMBuf, at: nil, options: [], completionHandler: {})
         self.playerNode.play()
+        print ("play audio")
     }
 
     public func interruptPlayback() {
         logIf(.debug)?.debug("Interrupting playback")
         self.playerNode.stop()
     }
+    
+    // Function to create WAV data from samples
+    static func createWAVData(from int16Samples: [Int16], sampleRate: Int, channels: Int) -> Data {
+        let bitsPerSample: Int = 16
+        let bytesPerSample: Int = bitsPerSample / 8
+        let subchunk1Size: Int32 = 16
+        let audioFormat: Int16 = 1 // PCM
+        let blockAlign: Int16 = Int16(channels * bytesPerSample)
+        let byteRate: Int32 = Int32(sampleRate * channels * bytesPerSample)
+        let subchunk2Size: Int32 = Int32(int16Samples.count * bytesPerSample)
+        let chunkSize: Int32 = 4 + (8 + subchunk1Size) + (8 + subchunk2Size)
+        
+        var wavData = Data()
+        // RIFF header
+        wavData.append("RIFF".data(using: .ascii)!)
+        wavData.append(chunkSize.littleEndianData)
+        wavData.append("WAVE".data(using: .ascii)!)
+        // fmt subchunk
+        wavData.append("fmt ".data(using: .ascii)!)
+        wavData.append(subchunk1Size.littleEndianData)
+        wavData.append(audioFormat.littleEndianData)
+        wavData.append(Int16(channels).littleEndianData)
+        wavData.append(Int32(sampleRate).littleEndianData)
+        wavData.append(byteRate.littleEndianData)
+        wavData.append(blockAlign.littleEndianData)
+        wavData.append(Int16(bitsPerSample).littleEndianData)
+        // data subchunk
+        wavData.append("data".data(using: .ascii)!)
+        wavData.append(subchunk2Size.littleEndianData)
+        // Append the audio data
+        for sample in int16Samples {
+            wavData.append(sample.littleEndianData)
+        }
+        return wavData
+    }
 }
+
+// Extensions to convert integers to Data with little-endian representation
+extension Int16 {
+    var littleEndianData: Data {
+        var source = self.littleEndian
+        return Data(bytes: &source, count: MemoryLayout<Int16>.size)
+    }
+}
+
+extension Int32 {
+    var littleEndianData: Data {
+        var source = self.littleEndian
+        return Data(bytes: &source, count: MemoryLayout<Int32>.size)
+    }
+}
+
 
 private func addGain(to buffer: AVAudioPCMBuffer, gain: Float) {
     guard let channelData = buffer.floatChannelData else {
