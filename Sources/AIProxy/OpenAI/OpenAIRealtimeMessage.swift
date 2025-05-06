@@ -15,5 +15,6 @@ public enum OpenAIRealtimeMessage {
     case responseDone // "response.done"
     case responseAudioDone // "response.audio.done"
     case responseTranscriptDone(String) // "response.audio_transcript.done"
+    case audioStartedPlaying (Int) //""
     case responseFunctionCallArgumentsDone(String, String) // "response.function_call_arguments.done"
 }
