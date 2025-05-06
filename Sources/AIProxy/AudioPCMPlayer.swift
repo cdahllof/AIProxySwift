@@ -177,9 +177,9 @@ open class AudioPCMPlayer {
             self.continuation?.yield(.chunkScheduled(self.scheduledBufferCount-self.completedBufferCount))
             
             // If all audio is received and this was the last buffer, signal completion
-            //if self.isAllAudioReceived && self.scheduledBufferCount == self.completedBufferCount {
-              //  self.continuation?.yield(.playbackFinished)
-           // }
+            if self.isAllAudioReceived && self.scheduledBufferCount == self.completedBufferCount {
+                self.continuation?.yield(.playbackFinished)
+            }
         })
         self.playerNode.play()
         print ("play audio")
@@ -190,8 +190,18 @@ open class AudioPCMPlayer {
         self.playerNode.stop()
         
     }
-    
+
+    public func signalAllAudioReceived() {
+        self.isAllAudioReceived = true
+        //self.continuation?.yield(.allAudioReceived)
+        
+        // Check if playback is already complete
+        if self.scheduledBufferCount == self.completedBufferCount {
+            self.continuation?.yield(.playbackFinished)
+        }
+    }
 }
+
 
 private func addGain(to buffer: AVAudioPCMBuffer, gain: Float) {
     guard let channelData = buffer.floatChannelData else {
