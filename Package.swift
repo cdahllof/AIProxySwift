@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "AIProxy",
     platforms: [
-         .iOS(.v15),
+         .iOS(.v17),
          .macOS(.v13),
          .visionOS(.v1),
          .watchOS(.v9)
