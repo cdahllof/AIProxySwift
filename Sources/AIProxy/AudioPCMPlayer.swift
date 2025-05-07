@@ -25,7 +25,7 @@ import AVFoundation
 
 public enum AudioPlayerEvent {
     case chunkScheduled(Int) // How many chunks are in queue
-    case allAudioScheduled([Data]) // All audio data collected
+    case allAudioScheduled([Int16]) // All audio data collected
     case playbackFinished // All audio has been played
 }
 
@@ -43,7 +43,7 @@ open class AudioPCMPlayer {
     
     private var continuation: AsyncStream<AudioPlayerEvent>.Continuation?
         
-    private var audioChunks: [Data] = []
+    private var audioChunks = [Int16]()
     private var isAllAudioReceived = false
     
     
@@ -114,8 +114,26 @@ open class AudioPCMPlayer {
             return
         }
         
+        
+        // Read Int16 samples from audioData
+        let int16Samples: [Int16] = audioData.withUnsafeBytes { rawBufferPointer in
+            let bufferPointer = rawBufferPointer.bindMemory(to: Int16.self)
+            return Array(bufferPointer)
+        }
+
+        // **Convert mono to stereo by duplicating samples**
+              var stereoSamples16 = [Int16]()
+              stereoSamples16.reserveCapacity(int16Samples.count * 2)
+              for sample in int16Samples {
+                  stereoSamples16.append(sample) // Left channel
+                  stereoSamples16.append(sample) // Right channel
+              }
+        
+        
+        
         // Store this chunk for WAV creation later
-        audioChunks.append(audioData)
+        audioChunks.append(contentsOf: stereoSamples16)
+        
         
         var bufferList = AudioBufferList(
             mNumberBuffers: 1,
@@ -143,6 +161,8 @@ open class AudioPCMPlayer {
             logIf(.error)?.error("Could not create output buffer for audio playback")
             return
         }
+        
+        
         
         guard let converter = AVAudioConverter(from: self.inputFormat, to: self.playableFormat) else {
             logIf(.error)?.error("Could not create audio converter needed to map from pcm16int to pcm32float")
