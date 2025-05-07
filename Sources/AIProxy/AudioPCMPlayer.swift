@@ -114,6 +114,9 @@ open class AudioPCMPlayer {
             return
         }
         
+        // Store this chunk for WAV creation later
+        audioChunks.append(audioData)
+        
         var bufferList = AudioBufferList(
             mNumberBuffers: 1,
             mBuffers: (
@@ -193,7 +196,8 @@ open class AudioPCMPlayer {
 
     public func signalAllAudioReceived() {
         self.isAllAudioReceived = true
-        //self.continuation?.yield(.allAudioReceived)
+        
+        self.continuation?.yield(.allAudioScheduled(audioChunks))
         
         // Check if playback is already complete
         if self.scheduledBufferCount == self.completedBufferCount {
