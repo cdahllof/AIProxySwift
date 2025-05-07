@@ -31,6 +31,7 @@ open class OpenAIRealtimeSession {
         }
         self.webSocketTask.resume()
         self.receiveMessage()
+        self.startPing()
     }
 
     deinit {
