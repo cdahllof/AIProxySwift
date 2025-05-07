@@ -31,6 +31,7 @@ open class OpenAIRealtimeSession {
         }
         self.webSocketTask.resume()
         self.receiveMessage()
+        print("start ping")
         self.startPing()
     }
 
@@ -87,6 +88,7 @@ open class OpenAIRealtimeSession {
 
     // MARK: - Ping/Pong Mechanism
     private func startPing() {
+        print("in ping *********************")
         DispatchQueue.main.async {
             self.pingTimer?.invalidate()
             self.pingTimer = Timer.scheduledTimer(withTimeInterval: self.pingInterval, repeats: true) { [weak self] _ in
