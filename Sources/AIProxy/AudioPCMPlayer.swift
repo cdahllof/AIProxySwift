@@ -46,8 +46,10 @@ open class AudioPCMPlayer {
     private var audioChunks = [Int16]()
     private var isAllAudioReceived = false
     
+    private let timePitchNode: AVAudioUnitTimePitch
     
-    public init() throws {
+    
+    public init(playbackRate: Float = 1.0) throws {
         guard let _inputFormat = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
             sampleRate: 24000,
@@ -72,13 +74,20 @@ open class AudioPCMPlayer {
         
         let engine = AVAudioEngine()
         let node = AVAudioPlayerNode()
+        let timePitch = AVAudioUnitTimePitch()
+        
+        timePitch.rate = playbackRate
         
         engine.attach(node)
+        engine.attach(timePitch)
+        
+        engine.connect(node, to: timePitch, format: _playableFormat)
         engine.connect(node, to: engine.mainMixerNode, format: _playableFormat)
         engine.prepare()
         
         self.audioEngine = engine
         self.playerNode = node
+        self.timePitchNode = timePitch
         self.inputFormat = _inputFormat
         self.playableFormat = _playableFormat
         
