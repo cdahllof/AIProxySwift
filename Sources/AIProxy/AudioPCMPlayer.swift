@@ -82,7 +82,7 @@ open class AudioPCMPlayer {
         engine.attach(timePitch)
         
         engine.connect(node, to: timePitch, format: _playableFormat)
-        engine.connect(node, to: engine.mainMixerNode, format: _playableFormat)
+        engine.connect(timePitch, to: engine.mainMixerNode, format: _playableFormat)
         engine.prepare()
         
         self.audioEngine = engine
