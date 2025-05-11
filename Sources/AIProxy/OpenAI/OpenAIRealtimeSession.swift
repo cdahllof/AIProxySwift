@@ -155,7 +155,7 @@ open class OpenAIRealtimeSession {
             self.disconnect()
             return
         }
-        logIf(.debug)?.debug("Received \(messageType) from OpenAI")
+        //logIf(.debug)?.debug("Received \(messageType) from OpenAI")
 
         switch messageType {
         case "error":
@@ -181,8 +181,6 @@ open class OpenAIRealtimeSession {
             }
         case "response.created":
             self.continuation?.yield(.responseCreated)
-        case "input_audio_buffer.speech_started":
-            self.continuation?.yield(.inputAudioBufferSpeechStarted)
         case "response.function_call_arguments.done":
             if let name = json["name"] as? String,
                let arguments = json["arguments"] as? String {
