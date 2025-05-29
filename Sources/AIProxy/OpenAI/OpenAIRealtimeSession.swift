@@ -88,7 +88,6 @@ open class OpenAIRealtimeSession {
 
     // MARK: - Ping/Pong Mechanism
     private func startPing() {
-        print("in ping *********************")
         DispatchQueue.main.async {
             self.pingTimer?.invalidate()
             self.pingTimer = Timer.scheduledTimer(withTimeInterval: self.pingInterval, repeats: true) { [weak self] _ in
@@ -170,14 +169,9 @@ open class OpenAIRealtimeSession {
             if let base64Audio = json["delta"] as? String {
                 self.continuation?.yield(.responseAudioDelta(base64Audio))
             }
-        case "response.audio_transcript.delta":
-            if let d = json["delta"] as? String {
-                print(d)
-            }
         case "response.audio_transcript.done":
             if let transcript = json["transcript"] as? String {
                 self.continuation?.yield(.responseTranscriptDone(transcript))
-                print(transcript)
             }
         case "response.created":
             self.continuation?.yield(.responseCreated)

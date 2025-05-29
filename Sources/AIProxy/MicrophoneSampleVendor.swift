@@ -38,6 +38,8 @@ enum MicrophoneSampleVendorError: Error {
 ///     }
 /// ```
 ///
+///
+///
 @RealtimeActor
 final class MicrophoneSampleVendor {
 
