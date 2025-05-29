@@ -48,6 +48,8 @@ open class AudioPCMPlayer {
     
     private let timePitchNode: AVAudioUnitTimePitch
     
+    private var audioInterrupted = false
+    
     
     public init(playbackRate: Float = 1.0) throws {
         guard let _inputFormat = AVAudioFormat(
@@ -75,6 +77,8 @@ open class AudioPCMPlayer {
         let engine = AVAudioEngine()
         let node = AVAudioPlayerNode()
         let timePitch = AVAudioUnitTimePitch()
+        
+        audioInterrupted = false
         
         timePitch.rate = playbackRate
         
@@ -213,13 +217,16 @@ open class AudioPCMPlayer {
                 self.continuation?.yield(.playbackFinished)
             }
         })
-        self.playerNode.play()
-        print ("play audio")
+        if audioInterrupted == false {
+            self.playerNode.play()
+            print ("play audio")
+        }
     }
     
     public func interruptPlayback() {
         logIf(.debug)?.debug("Interrupting playback")
         self.playerNode.stop()
+        self.audioInterrupted = true
         
     }
 
