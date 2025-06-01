@@ -219,7 +219,6 @@ open class AudioPCMPlayer {
         })
         if audioInterrupted == false {
             self.playerNode.play()
-            print ("play audio")
         }
     }
     
