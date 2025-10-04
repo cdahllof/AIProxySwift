@@ -22,6 +22,7 @@ import AVFoundation
 ///
 /// See the "Sidenote" section here for the unfortunate dependency on order:
 /// https://stackoverflow.com/questions/57612695/avaudioplayer-volume-low-with-voiceprocessingio
+//<<<<<<< HEAD
 
 public enum AudioPlayerEvent {
     case chunkScheduled(Int) // How many chunks are in queue
@@ -32,10 +33,16 @@ public enum AudioPlayerEvent {
 @RealtimeActor
 open class AudioPCMPlayer {
     
+/* =======
+@AIProxyActor final class AudioPCMPlayer {
+
+    let audioEngine: AVAudioEngine
+>>>>>>> upstream/main */
     private let inputFormat: AVAudioFormat
     private let playableFormat: AVAudioFormat
     private let audioEngine: AVAudioEngine
     private let playerNode: AVAudioPlayerNode
+// <<<<<<< HEAD
     private let adjustGainOniOS = true
     
     private var scheduledBufferCount = 0
@@ -53,6 +60,12 @@ open class AudioPCMPlayer {
     
     public init(playbackRate: Float = 1.0) throws {
         guard let _inputFormat = AVAudioFormat(
+/* =======
+
+    init(audioEngine: AVAudioEngine) async throws {
+        self.audioEngine = audioEngine
+        guard let inputFormat = AVAudioFormat(
+>>>>>>> upstream/main */
             commonFormat: .pcmFormatInt16,
             sampleRate: 24000,
             channels: 1,
@@ -62,8 +75,8 @@ open class AudioPCMPlayer {
                 "Could not create input format for AudioPCMPlayerError"
             )
         }
-        
-        guard let _playableFormat = AVAudioFormat(
+
+        guard let playableFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: 24000,
             channels: 1,
@@ -73,6 +86,7 @@ open class AudioPCMPlayer {
                 "Could not create playback format for AudioPCMPlayerError"
             )
         }
+// <<<<<<< HEAD
         
         let engine = AVAudioEngine()
         let node = AVAudioPlayerNode()
@@ -85,15 +99,15 @@ open class AudioPCMPlayer {
         engine.attach(node)
         engine.attach(timePitch)
         
-        engine.connect(node, to: timePitch, format: _playableFormat)
-        engine.connect(timePitch, to: engine.mainMixerNode, format: _playableFormat)
+        engine.connect(node, to: timePitch, format: playableFormat)
+        engine.connect(timePitch, to: engine.mainMixerNode, format: playableFormat)
         engine.prepare()
         
         self.audioEngine = engine
         self.playerNode = node
         self.timePitchNode = timePitch
         self.inputFormat = _inputFormat
-        self.playableFormat = _playableFormat
+        self.playableFormat = playableFormat
         
 #if !os(macOS)
         if self.adjustGainOniOS {
@@ -108,11 +122,21 @@ open class AudioPCMPlayer {
         }
 #endif
         
+/* =======
+
+        let node = AVAudioPlayerNode()
+
+        audioEngine.attach(node)
+        audioEngine.connect(node, to: audioEngine.outputNode, format: playableFormat)
+
+        self.playerNode = node
+        self.inputFormat = inputFormat
+        self.playableFormat = playableFormat
+>>>>>>> upstream/main */
     }
     
     deinit {
         logIf(.debug)?.debug("AudioPCMPlayer is being freed")
-        self.audioEngine.stop()
     }
     
     public var receiver: AsyncStream<AudioPlayerEvent> {
@@ -169,7 +193,7 @@ open class AudioPCMPlayer {
         
         guard let outPCMBuf = AVAudioPCMBuffer(
             pcmFormat: self.playableFormat,
-            frameCapacity: AVAudioFrameCount(self.playableFormat.sampleRate * 2.0)
+            frameCapacity: AVAudioFrameCount(UInt32(audioData.count) * 2)
         ) else {
             logIf(.error)?.error("Could not create output buffer for audio playback")
             return
@@ -188,6 +212,7 @@ open class AudioPCMPlayer {
             logIf(.error)?.error("Could not map from pcm16int to pcm32float: \(error.localizedDescription)")
             return
         }
+// <<<<<<< HEAD
         
         if !self.audioEngine.isRunning {
             do {
@@ -220,6 +245,18 @@ open class AudioPCMPlayer {
         if audioInterrupted == false {
             self.playerNode.play()
         }
+/* =======
+
+        if self.audioEngine.isRunning {
+            // #if os(macOS)
+            // if AIProxyUtils.headphonesConnected {
+            //    addGain(to: outPCMBuf, gain: 2.0)
+            // }
+            // #endif
+            self.playerNode.scheduleBuffer(outPCMBuf, at: nil, options: [], completionHandler: {})
+            self.playerNode.play()
+        }
+>>>>>>> upstream/main */
     }
     
     public func interruptPlayback() {
@@ -244,7 +281,7 @@ open class AudioPCMPlayer {
 
 private func addGain(to buffer: AVAudioPCMBuffer, gain: Float) {
     guard let channelData = buffer.floatChannelData else {
-        print("Buffer doesn't contain float32 audio data")
+        logIf(.info)?.info("Interrupting playback")
         return
     }
 

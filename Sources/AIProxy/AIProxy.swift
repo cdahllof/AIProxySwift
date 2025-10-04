@@ -8,7 +8,7 @@ import UIKit
 public enum AIProxy {
 
     /// The current sdk version
-    public static let sdkVersion = "0.96.1"
+    nonisolated public static let sdkVersion = "0.130.0"
 
     /// Configures the AIProxy SDK. Call this during app launch by adding an `init` to your SwiftUI MyApp.swift file, e.g.
     ///
@@ -74,23 +74,41 @@ public enum AIProxy {
     ///                              4. Tap the plus sign next to 'Capability'
     ///                              5. Add iCloud
     ///                              6. Select the 'Key-value storage' service
-    public static func configure(
+    ///
+    ///                          If possible, StoreKit's appTransactionID will be used as the stable ID.
+    ///                          If the app store receipt cannot be verified then we fall back to a GUID synced across iCloud-backed keychain and UKVS.
+    nonisolated public static func configure(
         logLevel: AIProxyLogLevel,
         printRequestBodies: Bool,
         printResponseBodies: Bool,
         resolveDNSOverTLS: Bool,
         useStableID: Bool
     ) {
-        aiproxyCallerDesiredLogLevel = logLevel
-        self.printRequestBodies = printRequestBodies
-        self.printResponseBodies = printResponseBodies
-        self.resolveDNSOverTLS = resolveDNSOverTLS
-        if useStableID {
-            Task.detached {
-                if let stableID = await self._getStableIdentifier() {
-                    self.stableID = stableID
+        let previouslyUsingStableID = self.configuration?.useStableID ?? false
+        AIProxyLogLevel.callerDesiredLogLevel = logLevel
+        self.configuration = AIProxyConfiguration(
+            resolveDNSOverTLS: resolveDNSOverTLS,
+            printRequestBodies: printRequestBodies,
+            printResponseBodies: printResponseBodies,
+            useStableID: useStableID
+        )
+        if useStableID && !previouslyUsingStableID {
+            Task { @AIProxyActor in
+                if let newStableID = await AIProxyConfiguration.getStableIdentifier() {
+                    self.configuration?.stableID = newStableID
                 }
             }
+        }
+    }
+
+    /// This must only be accessed through `ProtectedPropertyQueue.configuration`.
+    nonisolated(unsafe) static private var _configuration: AIProxyConfiguration?
+    nonisolated static var configuration: AIProxyConfiguration? {
+        get {
+            ProtectedPropertyQueue.configuration.sync { self._configuration }
+        }
+        set {
+            ProtectedPropertyQueue.configuration.async(flags: .barrier) { self._configuration = newValue }
         }
     }
 
@@ -109,21 +127,21 @@ public enum AIProxy {
     /// Or using cloudflare's resolver
     ///
     ///    kdig @1.1.1.1 api.aiproxy.com +noall +stats
-    public static var resolveDNSOverTLS = true
-
-    public static var stableID: String? {
-        get {
-            protectedPropertyQueue.sync { _stableID }
-        }
-        set {
-            protectedPropertyQueue.async(flags: .barrier) { _stableID = newValue }
-        }
+    nonisolated public static var resolveDNSOverTLS: Bool {
+        self.configuration?.resolveDNSOverTLS ?? false
     }
-    private static var _stableID: String?
 
-    public static var printRequestBodies: Bool = false
-    public static var printResponseBodies: Bool = false
+    nonisolated public static var stableID: String? {
+        self.configuration?.stableID
+    }
 
+    nonisolated public static var printRequestBodies: Bool {
+        self.configuration?.printRequestBodies ?? false
+    }
+
+    nonisolated public static var printResponseBodies: Bool {
+        self.configuration?.printResponseBodies ?? false
+    }
 
     /// - Parameters:
     ///   - partialKey: Your partial key is displayed in the AIProxy dashboard when you submit your provider's key.
@@ -154,7 +172,7 @@ public enum AIProxy {
     ///
     /// - Returns: A request containing all headers that AIProxy expects. The request is ready to be used with a url session
     ///            that you create with `AIProxy.session()`
-    public static func request(
+    nonisolated public static func request(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil,
@@ -176,7 +194,7 @@ public enum AIProxy {
     }
 
     /// Returns a URLSession for communication with AIProxy.
-    public static func session() -> URLSession {
+    nonisolated public static func session() -> URLSession {
         return AIProxyURLSession.create()
     }
 
@@ -203,7 +221,7 @@ public enum AIProxy {
     ///                    Otherwise, you may leave this set to its default value of `.standard`.
     ///
     /// - Returns: An instance of OpenAIService configured and ready to make requests
-    public static func openAIService(
+    nonisolated public static func openAIService(
         partialKey: String,
         serviceURL: String? = nil,
         clientID: String? = nil,
@@ -222,13 +240,18 @@ public enum AIProxy {
     ///
     /// - Parameters:
     ///   - unprotectedAPIKey: Your OpenAI API key
+    ///   - baseURL: Optional base URL for the API requests
+    ///   - requestFormat: If you are sending requests to your own Azure deployment, set this to `.azureDeployment`.
+    ///                   Otherwise, you may leave this set to its default value of `.standard`
     /// - Returns: An instance of OpenAIService configured and ready to make requests
-    public static func openAIDirectService(
+    nonisolated public static func openAIDirectService(
         unprotectedAPIKey: String,
-        baseURL: String? = nil
+        baseURL: String? = nil,
+        requestFormat: OpenAIRequestFormat = .standard
     ) -> OpenAIService {
         return OpenAIDirectService(
             unprotectedAPIKey: unprotectedAPIKey,
+            requestFormat: requestFormat,
             baseURL: baseURL
         )
     }
@@ -251,7 +274,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of GeminiService configured and ready to make requests
-    public static func geminiService(
+    nonisolated public static func geminiService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -269,7 +292,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Gemini API key
     /// - Returns: An instance of  GeminiService configured and ready to make requests
-    public static func geminiDirectService(
+    nonisolated public static func geminiDirectService(
         unprotectedAPIKey: String
     ) -> GeminiService {
         return GeminiDirectService(
@@ -295,7 +318,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of AnthropicService configured and ready to make requests
-    public static func anthropicService(
+    nonisolated public static func anthropicService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -313,7 +336,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Anthropic API key
     /// - Returns: An instance of AnthropicService configured and ready to make requests
-    public static func anthropicDirectService(
+    nonisolated public static func anthropicDirectService(
         unprotectedAPIKey: String,
         baseURL: String? = nil
     ) -> AnthropicService {
@@ -341,7 +364,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of StabilityAIService configured and ready to make requests
-    public static func stabilityAIService(
+    nonisolated public static func stabilityAIService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -359,7 +382,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your StabilityAI API key
     /// - Returns: An instance of StabilityAIService configured and ready to make requests
-    public static func stabilityAIDirectService(
+    nonisolated public static func stabilityAIDirectService(
         unprotectedAPIKey: String
     ) -> StabilityAIService {
         return StabilityAIDirectService(
@@ -385,7 +408,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of DeepLService configured and ready to make requests
-    public static func deepLService(
+    nonisolated public static func deepLService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -404,7 +427,7 @@ public enum AIProxy {
     ///   - unprotectedAPIKey: Your DeepL API key
     ///   - accountType: Free or paid
     /// - Returns: An instance of DeepLService configured and ready to make requests
-    public static func deepLDirectService(
+    nonisolated public static func deepLDirectService(
         unprotectedAPIKey: String,
         accountType: DeepLAccountType
     ) -> DeepLService {
@@ -432,7 +455,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of TogetherAIService configured and ready to make requests
-    public static func togetherAIService(
+    nonisolated public static func togetherAIService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -450,7 +473,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your TogetherAI API key
     /// - Returns: An instance of TogetherAIService configured and ready to make requests
-    public static func togetherAIDirectService(
+    nonisolated public static func togetherAIDirectService(
         unprotectedAPIKey: String
     ) -> TogetherAIService {
         return TogetherAIDirectService(
@@ -476,7 +499,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of ReplicateService configured and ready to make requests
-    public static func replicateService(
+    nonisolated public static func replicateService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -494,15 +517,13 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Replicate API key
     /// - Returns: An instance of ReplicateService configured and ready to make requests
-    #if false
-    public static func replicateDirectService(
+    nonisolated public static func replicateDirectService(
         unprotectedAPIKey: String
     ) -> ReplicateService {
         return ReplicateDirectService(
             unprotectedAPIKey: unprotectedAPIKey
         )
     }
-    #endif
 
     /// AIProxy's ElevenLabs service
     ///
@@ -522,7 +543,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of ElevenLabsService configured and ready to make requests
-    public static func elevenLabsService(
+    nonisolated public static func elevenLabsService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -540,7 +561,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your ElevenLabs API key
     /// - Returns: An instance of  ElevenLabsService configured and ready to make requests
-    public static func elevenLabsDirectService(
+    nonisolated public static func elevenLabsDirectService(
         unprotectedAPIKey: String
     ) -> ElevenLabsService {
         return ElevenLabsDirectService(
@@ -566,7 +587,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of FalService configured and ready to make requests
-    public static func falService(
+    nonisolated public static func falService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -584,7 +605,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your ElevenLabs API key
     /// - Returns: An instance of  ElevenLabsService configured and ready to make requests
-    public static func falDirectService(
+    nonisolated public static func falDirectService(
         unprotectedAPIKey: String
     ) -> FalService {
         return FalDirectService(
@@ -610,7 +631,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of GroqService configured and ready to make requests
-    public static func groqService(
+    nonisolated public static func groqService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -628,7 +649,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Groq API key
     /// - Returns: An instance of  GroqService configured and ready to make requests
-    public static func groqDirectService(
+    nonisolated public static func groqDirectService(
         unprotectedAPIKey: String,
         baseURL: String? = nil
     ) -> GroqService {
@@ -656,7 +677,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of PerplexityService configured and ready to make requests
-    public static func perplexityService(
+    nonisolated public static func perplexityService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -674,7 +695,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Perplexity API key
     /// - Returns: An instance of  PerplexityService configured and ready to make requests
-    public static func perplexityDirectService(
+    nonisolated public static func perplexityDirectService(
         unprotectedAPIKey: String
     ) -> PerplexityService {
         return PerplexityDirectService(
@@ -700,7 +721,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of MistralService configured and ready to make requests
-    public static func mistralService(
+    nonisolated public static func mistralService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -718,7 +739,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Mistral API key
     /// - Returns: An instance of  MistralService configured and ready to make requests
-    public static func mistralDirectService(
+    nonisolated public static func mistralDirectService(
         unprotectedAPIKey: String
     ) -> MistralService {
         return MistralDirectService(
@@ -744,7 +765,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of EachAIService configured and ready to make requests
-    public static func eachAIService(
+    nonisolated public static func eachAIService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -762,7 +783,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your EachAI API key
     /// - Returns: An instance of  EachAI configured and ready to make requests
-    public static func eachAIDirectService(
+    nonisolated public static func eachAIDirectService(
         unprotectedAPIKey: String
     ) -> EachAIService {
         return EachAIDirectService(
@@ -788,7 +809,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of OpenRouterService configured and ready to make requests
-    public static func openRouterService(
+    nonisolated public static func openRouterService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -806,7 +827,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your OpenRouter API key
     /// - Returns: An instance of  OpenRouter configured and ready to make requests
-    public static func openRouterDirectService(
+    nonisolated public static func openRouterDirectService(
         unprotectedAPIKey: String,
         baseURL: String? = nil
     ) -> OpenRouterService {
@@ -834,7 +855,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of DeepSeekService configured and ready to make requests
-    public static func deepSeekService(
+    nonisolated public static func deepSeekService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -852,7 +873,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your DeepSeek API key
     /// - Returns: An instance of  DeepSeek configured and ready to make requests
-    public static func deepSeekDirectService(
+    nonisolated public static func deepSeekDirectService(
         unprotectedAPIKey: String,
         baseURL: String? = nil
     ) -> DeepSeekService {
@@ -880,7 +901,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of FireworksAIService configured and ready to make requests
-    public static func fireworksAIService(
+    nonisolated public static func fireworksAIService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -898,7 +919,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your FireworksAI API key
     /// - Returns: An instance of  FireworksAI configured and ready to make requests
-    public static func fireworksAIDirectService(
+    nonisolated public static func fireworksAIDirectService(
         unprotectedAPIKey: String
     ) -> FireworksAIService {
         return FireworksAIDirectService(
@@ -924,7 +945,7 @@ public enum AIProxy {
     ///     on iOS are pesistent until the end user chooses to rotate their vendor identification number.
     ///
     /// - Returns: An instance of BraveService configured and ready to make requests
-    public static func braveService(
+    nonisolated public static func braveService(
         partialKey: String,
         serviceURL: String,
         clientID: String? = nil
@@ -942,7 +963,7 @@ public enum AIProxy {
     /// - Parameters:
     ///   - unprotectedAPIKey: Your Brave API key
     /// - Returns: An instance of  Brave configured and ready to make requests
-    public static func braveDirectService(
+    nonisolated public static func braveDirectService(
         unprotectedAPIKey: String
     ) -> BraveService {
         return BraveDirectService(
@@ -951,7 +972,7 @@ public enum AIProxy {
     }
 
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
-    public static func encodeImageAsJpeg(
+    nonisolated public static func encodeImageAsJpeg(
         image: NSImage,
         compressionQuality: CGFloat /* = 1.0 */
     ) -> Data? {
@@ -959,14 +980,14 @@ public enum AIProxy {
     }
 
     @available(*, deprecated, message: "This function is deprecated. Use AIProxy.encodeImageAsURL instead.")
-    public static func openAIEncodedImage(
+    nonisolated public static func openAIEncodedImage(
         image: NSImage,
         compressionQuality: CGFloat /* = 1.0 */
     ) -> URL? {
         return AIProxyUtils.encodeImageAsURL(image, compressionQuality)
     }
 
-    public static func encodeImageAsURL(
+    nonisolated public static func encodeImageAsURL(
         image: NSImage,
         compressionQuality: CGFloat /* = 1.0 */
     ) -> URL? {
@@ -974,7 +995,7 @@ public enum AIProxy {
     }
 
 #elseif canImport(UIKit)
-    public static func encodeImageAsJpeg(
+    nonisolated public static func encodeImageAsJpeg(
         image: UIImage,
         compressionQuality: CGFloat /* = 1.0 */
     ) -> Data? {
@@ -982,14 +1003,14 @@ public enum AIProxy {
     }
 
     @available(*, deprecated, message: "This function is deprecated. Use AIProxy.encodeImageAsURL instead.")
-    public static func openAIEncodedImage(
+    nonisolated public static func openAIEncodedImage(
         image: UIImage,
         compressionQuality: CGFloat /* = 1.0 */
     ) -> URL? {
         return AIProxyUtils.encodeImageAsURL(image, compressionQuality)
     }
 
-    public static func encodeImageAsURL(
+    nonisolated public static func encodeImageAsURL(
         image: UIImage,
         compressionQuality: CGFloat /* = 1.0 */
     ) -> URL? {
@@ -998,21 +1019,11 @@ public enum AIProxy {
 #endif
 
     @available(*, deprecated, message: "Use AIProxy.configure and pass true for useStableID")
-    public static func getStableIdentifier() async -> String? {
-        return await self._getStableIdentifier()
+    nonisolated public static func getStableIdentifier() async -> String? {
+        return await AIProxyConfiguration.getStableIdentifier()
     }
 
-    @NetworkActor
-    private static func _getStableIdentifier() async -> String? {
-        do {
-            return try await AnonymousAccountStorage.sync()
-        } catch {
-            logIf(.critical)?.critical("Could not configure an AIProxy anonymous account: \(error.localizedDescription)")
-        }
-        return nil
-    }
-
-    public static func base64EncodeAudioPCMBuffer(from buffer: AVAudioPCMBuffer) -> String? {
+    nonisolated public static func base64EncodeAudioPCMBuffer(from buffer: AVAudioPCMBuffer) -> String? {
         guard buffer.format.channelCount == 1 else {
             logIf(.error)?.error("This encoding routine assumes a single channel")
             return nil
@@ -1025,8 +1036,6 @@ public enum AIProxy {
 
         let audioBufferLenth = Int(buffer.audioBufferList.pointee.mBuffers.mDataByteSize)
         let data = Data(bytes: audioBufferPtr, count: audioBufferLenth).base64EncodedString()
-        // print(data)
         return data
     }
-
 }

@@ -9,11 +9,14 @@ import Foundation
 struct BackgroundNetworker {
 
     /// Throws AIProxyError.unsuccessfulRequest if the returned status code is non-200
-    @NetworkActor
-    static func makeRequestAndWaitForData(
+    @AIProxyActor static func makeRequestAndWaitForData(
         _ session: URLSession,
-        _ request: URLRequest
+        _ request: URLRequest,
+        _ progressCallback: (@Sendable (Double) -> Void)? = nil
     ) async throws -> (Data, HTTPURLResponse) {
+        if let progressCallback {
+            (session.delegate as? AIProxyCertificatePinningDelegate)?.progressCallback = progressCallback
+        }
         let (data, res) = try await session.data(for: request)
         guard let httpResponse = res as? HTTPURLResponse else {
             throw AIProxyError.assertion("Network response is not an http response")
@@ -29,8 +32,7 @@ struct BackgroundNetworker {
     }
 
     /// Throws AIProxyError.unsuccessfulRequest if the returned status code is non-200
-    @NetworkActor
-    static func makeRequestAndWaitForAsyncBytes(
+    @AIProxyActor static func makeRequestAndWaitForAsyncBytes(
         _ session: URLSession,
         _ request: URLRequest
     ) async throws -> (URLSession.AsyncBytes, HTTPURLResponse) {
@@ -41,7 +43,10 @@ struct BackgroundNetworker {
         }
 
         if (httpResponse.statusCode > 299) {
-            let responseBody = try await asyncBytes.lines.reduce(into: "") { $0 += $1 }
+            var responseBody = ""
+            for try await line in asyncBytes.lines {
+                responseBody += line
+            }
             throw AIProxyError.unsuccessfulRequest(
                 statusCode: httpResponse.statusCode,
                 responseBody: responseBody

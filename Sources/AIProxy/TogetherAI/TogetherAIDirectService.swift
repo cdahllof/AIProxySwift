@@ -7,12 +7,12 @@
 
 import Foundation
 
-open class TogetherAIDirectService: TogetherAIService, DirectService {
+@AIProxyActor final class TogetherAIDirectService: TogetherAIService, DirectService, Sendable {
     private let unprotectedAPIKey: String
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.togetherAIDirectService` defined in AIProxy.swift
-    internal init(unprotectedAPIKey: String) {
+    nonisolated init(unprotectedAPIKey: String) {
         self.unprotectedAPIKey = unprotectedAPIKey
     }
 
@@ -24,7 +24,8 @@ open class TogetherAIDirectService: TogetherAIService, DirectService {
     /// - Returns: A ChatCompletionResponse. See this reference:
     ///            https://platform.openai.com/docs/api-reference/chat/object
     public func chatCompletionRequest(
-        body: TogetherAIChatCompletionRequestBody
+        body: TogetherAIChatCompletionRequestBody,
+        secondsToWait: UInt
     ) async throws -> TogetherAIChatCompletionResponseBody {
         var body = body
         body.stream = false
@@ -33,7 +34,7 @@ open class TogetherAIDirectService: TogetherAIService, DirectService {
             path: "/v1/chat/completions",
             body: try body.serialize(),
             verb: .post,
-            secondsToWait: 60,
+            secondsToWait: secondsToWait,
             contentType: "application/json",
             additionalHeaders: [
                 "Authorization": "Bearer \(self.unprotectedAPIKey)"
@@ -50,7 +51,7 @@ open class TogetherAIDirectService: TogetherAIService, DirectService {
     /// - Returns: A chat completion response. See the reference above.
     public func streamingChatCompletionRequest(
         body: TogetherAIChatCompletionRequestBody
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, OpenAIChatCompletionChunk> {
+    ) async throws -> AsyncThrowingStream<OpenAIChatCompletionChunk, Error> {
         var body = body
         body.stream = true
         let request = try AIProxyURLRequest.createDirect(

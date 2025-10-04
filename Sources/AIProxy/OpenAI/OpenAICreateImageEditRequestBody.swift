@@ -9,7 +9,7 @@ import Foundation
 
 /// Creates an edited or extended image given one or more source images and a prompt.
 /// https://platform.openai.com/docs/api-reference/images/createEdit
-public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
+nonisolated public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
 
     /// The images to edit. Must be a supported image file or an array of images.
     /// For gpt-image-1, each image should be a png, webp, or jpg file less than 25MB.
@@ -22,6 +22,24 @@ public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
 
     // MARK: Optional properties
 
+    /// Allows to set transparency for the background of the generated image(s).
+    /// This parameter is only supported for `gpt-image-1`.
+    /// Must be one of `.transparent`, `.opaque` or `.auto` (default value).
+    /// When `.auto` is used, the model will automatically determine the best background for the image.
+    ///
+    /// If `.transparent`, the `outputFormat` needs to support transparency, so it should be set to either `.png` (default value) or `.webp`
+    public let background: Background?
+
+    /// Control how much effort the model will exert to match the style and features, especially facial features, of input images.
+    /// This parameter is only supported for gpt-image-1. Supports `high` and `low`. Defaults to `low`.
+    ///
+    /// High input fidelity allows you to make subtle edits to an image without altering unrelated areas.
+    /// This is ideal for controlled, localized changes.
+    ///
+    /// Setting `inputFidelity=.high` is especially useful when editing images with faces, logos, or any other details that require high fidelity in the output.
+    /// Source: https://cookbook.openai.com/examples/generate_images_with_high_input_fidelity
+    public let inputFidelity: InputFidelity?
+
     /// An additional image whose fully transparent areas (e.g. where alpha is zero) indicate where image should be edited.
     /// If there are multiple images provided, the mask will be applied on the first image.
     /// Must be a valid PNG file, less than 4MB, and have the same dimensions as image.
@@ -33,6 +51,12 @@ public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
 
     /// The number of images to generate. Must be between 1 and 10.
     public let n: Int?
+
+    /// The format in which the generated images are returned.
+    /// This parameter is only supported for `gpt-image-1`.
+    /// Must be one of `.png`, `.jpeg`, or `.webp`.
+    /// The default value is `.png`
+    public let outputFormat: OutputFormat?
 
     /// The quality of the image that will be generated.
     /// high, medium and low are only supported for gpt-image-1.
@@ -69,9 +93,12 @@ public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
 
         return builder + [
             .textField(name: "prompt", content: self.prompt),
+            self.background.flatMap { .textField(name: "background", content: $0.rawValue) },
+            self.inputFidelity.flatMap { .textField(name: "input_fidelity", content: $0.rawValue) },
             self.model.flatMap { .textField(name: "model", content: $0.rawValue) },
             self.mask.flatMap { .fileField(name: "mask", content: $0, contentType: "image/png", filename: "tmpfile-mask") },
             self.n.flatMap { .textField(name: "n", content: String($0)) },
+            self.outputFormat.flatMap { .textField(name: "output_format", content: $0.rawValue) },
             self.quality.flatMap { .textField(name: "quality", content: $0.rawValue) },
             self.responseFormat.flatMap { .textField(name: "response_format", content: $0.rawValue) },
             self.size.flatMap { .textField(name: "size", content: $0) },
@@ -85,9 +112,12 @@ public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
     public init(
         images: [OpenAICreateImageEditRequestBody.InputImage],
         prompt: String,
+        background: Background? = nil,
+        inputFidelity: OpenAICreateImageEditRequestBody.InputFidelity? = nil,
         mask: Data? = nil,
         model: OpenAICreateImageEditRequestBody.Model? = nil,
         n: Int? = nil,
+        outputFormat: OutputFormat? = nil,
         quality: OpenAICreateImageEditRequestBody.Quality? = nil,
         responseFormat: OpenAICreateImageEditRequestBody.ResponseFormat? = nil,
         size: String? = nil,
@@ -95,9 +125,12 @@ public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
     ) {
         self.images = images
         self.prompt = prompt
+        self.background = background
+        self.inputFidelity = inputFidelity
         self.mask = mask
         self.model = model
         self.n = n
+        self.outputFormat = outputFormat
         self.quality = quality
         self.responseFormat = responseFormat
         self.size = size
@@ -105,8 +138,21 @@ public struct OpenAICreateImageEditRequestBody: MultipartFormEncodable {
     }
 }
 
+
 extension OpenAICreateImageEditRequestBody {
-    public enum InputImage {
+
+    nonisolated public enum Background: String, Sendable {
+        case auto
+        case opaque
+        case transparent
+    }
+
+    nonisolated public enum InputFidelity: String, Sendable {
+        case low
+        case high
+    }
+
+    nonisolated public enum InputImage: Sendable {
         case png(Data)
         case jpeg(Data)
 
@@ -127,12 +173,18 @@ extension OpenAICreateImageEditRequestBody {
         }
     }
 
-    public enum Model: String, Encodable {
+    nonisolated public enum Model: String, Encodable, Sendable {
         case dallE2 = "dall-e-2"
         case gptImage1 = "gpt-image-1"
     }
 
-    public enum Quality: String, Encodable {
+    nonisolated public enum OutputFormat: String, Sendable {
+        case jpeg
+        case png
+        case webp
+    }
+
+    nonisolated public enum Quality: String, Encodable, Sendable {
         case auto
 
         /// Supported for gpt-image-1
@@ -142,7 +194,7 @@ extension OpenAICreateImageEditRequestBody {
         case standard
     }
 
-    public enum ResponseFormat: String, Encodable {
+    nonisolated public enum ResponseFormat: String, Encodable, Sendable {
         case b64JSON = "b64_json"
         case url
     }

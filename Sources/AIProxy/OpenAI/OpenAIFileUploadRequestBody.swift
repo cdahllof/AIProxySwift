@@ -7,7 +7,7 @@
 
 import Foundation
 
-internal struct OpenAIFileUploadRequestBody: MultipartFormEncodable {
+struct OpenAIFileUploadRequestBody: MultipartFormEncodable {
 
     /// The binary contents of the file
     let contents: Data
@@ -25,7 +25,7 @@ internal struct OpenAIFileUploadRequestBody: MultipartFormEncodable {
     /// - vision: Images used for vision fine-tuning
     /// - user_data: Flexible file type for any purpose
     /// - evals: Used for eval data sets
-    let purpose: String
+    let purpose: OpenAIFilePurpose
 
     var formFields: [FormField] {
         return [
@@ -37,7 +37,7 @@ internal struct OpenAIFileUploadRequestBody: MultipartFormEncodable {
             ),
             .textField(
                 name: "purpose",
-                content: self.purpose
+                content: self.purpose.rawValue
             )
         ]
     }

@@ -92,9 +92,29 @@ extension FalService {
         input: FalTryonInputSchema
     ) async throws -> FalTryonOutputSchema {
         return try await self.createInferenceAndPollForResult(
-            model: "fashn/tryon",
+            model: "fal-ai/fashn/tryon/v1.5",
             input: input,
             pollAttempts: 60,
+            secondsBetweenPollAttempts: 2
+        )
+    }
+
+    /// Convenience method for creating a `fal-ai/flux-pro/kontext` image.
+    ///
+    /// - Parameter input: The input schema. See `FalFluxProKontextInputSchema.swift` for the range of controls that you
+    ///                    can use to adjust the image generation.
+    ///
+    /// - Returns: The inference result. The `images` property of the returned value contains a list of
+    ///            generated images. Each image has a `url` that you can use to fetch the image contents
+    ///            (or use with AsyncImage)
+    public func createFluxProKontextImage(
+        input: FalFluxProKontextInputSchema,
+        secondsToWait: UInt
+    ) async throws -> FalFluxProKontextOutputSchema {
+        return try await self.createInferenceAndPollForResult(
+            model: "fal-ai/flux-pro/kontext",
+            input: input,
+            pollAttempts: Int(ceil(Double(secondsToWait) / 2)),
             secondsBetweenPollAttempts: 2
         )
     }

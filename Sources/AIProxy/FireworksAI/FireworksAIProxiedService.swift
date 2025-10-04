@@ -7,7 +7,7 @@
 
 import Foundation
 
-open class FireworksAIProxiedService: FireworksAIService, ProxiedService {
+@AIProxyActor final class FireworksAIProxiedService: FireworksAIService, ProxiedService, Sendable {
 
     private let partialKey: String
     private let serviceURL: String
@@ -15,7 +15,7 @@ open class FireworksAIProxiedService: FireworksAIService, ProxiedService {
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.fireworksAIService` defined in AIProxy.swift
-    internal init(
+    nonisolated init(
         partialKey: String,
         serviceURL: String,
         clientID: String?
@@ -69,7 +69,7 @@ open class FireworksAIProxiedService: FireworksAIService, ProxiedService {
     public func streamingDeepSeekR1Request(
         body: DeepSeekChatCompletionRequestBody,
         secondsToWait: UInt
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, DeepSeekChatCompletionChunk> {
+    ) async throws -> AsyncThrowingStream<DeepSeekChatCompletionChunk, Error> {
         if body.model != "accounts/fireworks/models/deepseek-r1" {
             logIf(.warning)?.warning("Attempting to use deepSeekR1Request with an unknown model")
         }

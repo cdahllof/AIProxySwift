@@ -7,13 +7,13 @@
 
 import Foundation
 
-open class DeepSeekDirectService: DeepSeekService, DirectService {
+@AIProxyActor final class DeepSeekDirectService: DeepSeekService, DirectService, Sendable {
     private let unprotectedAPIKey: String
     private let baseURL: String
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.directDeepSeekService` defined in AIProxy.swift
-    internal init(
+    nonisolated init(
         unprotectedAPIKey: String,
         baseURL: String? = nil
     ) {
@@ -62,7 +62,7 @@ open class DeepSeekDirectService: DeepSeekService, DirectService {
     public func streamingChatCompletionRequest(
         body: DeepSeekChatCompletionRequestBody,
         secondsToWait: UInt
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, DeepSeekChatCompletionChunk> {
+    ) async throws -> AsyncThrowingStream<DeepSeekChatCompletionChunk, Error> {
         var body = body
         body.stream = true
         body.streamOptions = .init(includeUsage: true)

@@ -49,7 +49,17 @@ import Foundation
 ///
 /// If you encounter other calls in the wild that do not invoke `urlSession:didReceiveChallenge:` on this class,
 /// please report them to me.
-open class AIProxyCertificatePinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
+nonisolated public final class AIProxyCertificatePinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
+
+    nonisolated(unsafe) private var _progressCallback: (@Sendable (Double) -> Void)?
+    public var progressCallback: (@Sendable (Double) -> Void)? {
+        get {
+            ProtectedPropertyQueue.progressCallback.sync { self._progressCallback }
+        }
+        set {
+            ProtectedPropertyQueue.progressCallback.async(flags: .barrier) { self._progressCallback = newValue }
+        }
+    }
 
    public func urlSession(
       _ session: URLSession,
@@ -64,6 +74,19 @@ open class AIProxyCertificatePinningDelegate: NSObject, URLSessionDelegate, URLS
       didReceive challenge: URLAuthenticationChallenge
    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
       return self.answerChallenge(challenge)
+   }
+   
+   public func urlSession(
+       _ session: URLSession,
+       task: URLSessionTask,
+       didSendBodyData bytesSent: Int64,
+       totalBytesSent: Int64,
+       totalBytesExpectedToSend: Int64
+   ) {
+       guard let progressCallback = progressCallback,
+             totalBytesExpectedToSend > 0 else { return }
+       let progress = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
+       progressCallback(progress)
    }
 
    private func answerChallenge(
@@ -90,10 +113,21 @@ open class AIProxyCertificatePinningDelegate: NSObject, URLSessionDelegate, URLS
       }
       return (.cancelAuthenticationChallenge, nil)
    }
+
+    // MARK: - Deprecated
+    @available(*, deprecated, message: "Please use the progressCallback setter directly, e.g. myDelegate.progressCallback = ...")
+    public func setProgressCallback(_ callback: @escaping @Sendable (Double) -> Void) {
+        self.progressCallback = callback
+    }
+
+    @available(*, deprecated, message: "Please use the progressCallback setter directly, e.g. myDelegate.progressCallback = nil")
+    public func clearProgressCallback() {
+        self.progressCallback = nil
+    }
 }
 
  // MARK: - Private
- private var publicKeysAsData: [Data] = {
+nonisolated private let publicKeysAsData: [Data] = {
      let newVal = publicKeysAsHex.map { publicKeyAsHex in
          let keyData = Data(publicKeyAsHex)
 
@@ -117,7 +151,7 @@ open class AIProxyCertificatePinningDelegate: NSObject, URLSessionDelegate, URLS
      return newVal
  }()
 
-private let publicKeysAsHex: [[UInt8]] = [
+nonisolated private let publicKeysAsHex: [[UInt8]] = [
      // live on api.aiproxy.com
      [
          0x04, 0x4a, 0x42, 0x12, 0xe7, 0xed, 0x36, 0xb4, 0xa9, 0x1f, 0x96, 0x7e, 0xcf, 0xbd, 0xe0,
@@ -174,7 +208,7 @@ private let publicKeysAsHex: [[UInt8]] = [
 
  ]
 
-private func getServerCert(secTrust: SecTrust) -> SecCertificate? {
+nonisolated private func getServerCert(secTrust: SecTrust) -> SecCertificate? {
     if #available(macOS 12.0, iOS 15.0, *) {
         guard let certs = SecTrustCopyCertificateChain(secTrust) as? [SecCertificate] else {
             return nil

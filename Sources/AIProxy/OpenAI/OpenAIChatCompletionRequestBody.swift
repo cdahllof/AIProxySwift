@@ -9,7 +9,7 @@ import Foundation
 
 /// Chat completion request body. Docstrings are taken from this reference:
 /// https://platform.openai.com/docs/api-reference/chat/create
-public struct OpenAIChatCompletionRequestBody: Encodable {
+nonisolated public struct OpenAIChatCompletionRequestBody: Encodable, Sendable {
 
     /// ID of the model to use. See the model endpoint compatibility table for details on which models work
     /// with the Chat API:
@@ -33,6 +33,13 @@ public struct OpenAIChatCompletionRequestBody: Encodable {
     /// Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each output token returned in the `content` of `message`.
     /// Defaults to false
     public let logprobs: Bool?
+
+    /// This field is deprecated by OpenAI, but is useful for other providers.
+    /// Here is OpenAI's note:
+    /// The maximum number of tokens that can be generated in the chat completion.
+    /// This value can be used to control costs for text generated via API.
+    /// This value is now deprecated in favor of maxCompletionTokens, and is not compatible with o-series models.
+    public let maxTokens: Int?
 
     /// An upper bound for the number of tokens that can be generated for a completion, including visible output tokens and reasoning tokens: https://platform.openai.com/docs/guides/reasoning
     public let maxCompletionTokens: Int?
@@ -113,7 +120,7 @@ public struct OpenAIChatCompletionRequestBody: Encodable {
     /// This tool searches the web for relevant results to use in a response.
     /// Learn more: https://platform.openai.com/docs/guides/tools-web-search?api-mode=chat
     public let webSearchOptions: OpenAIChatCompletionRequestBody.WebSearchOptions?
-    
+
     private enum CodingKeys: String, CodingKey {
         case model
         case messages
@@ -122,6 +129,7 @@ public struct OpenAIChatCompletionRequestBody: Encodable {
         case frequencyPenalty = "frequency_penalty"
         case logitBias = "logit_bias"
         case logprobs
+        case maxTokens = "max_tokens"
         case maxCompletionTokens = "max_completion_tokens"
         case metadata
         case n
@@ -151,6 +159,7 @@ public struct OpenAIChatCompletionRequestBody: Encodable {
         frequencyPenalty: Double? = nil,
         logitBias: [String : Double]? = nil,
         logprobs: Bool? = nil,
+        maxTokens: Int? = nil,
         maxCompletionTokens: Int? = nil,
         metadata: [String : AIProxyJSONValue]? = nil,
         n: Int? = nil,
@@ -175,6 +184,7 @@ public struct OpenAIChatCompletionRequestBody: Encodable {
         self.frequencyPenalty = frequencyPenalty
         self.logitBias = logitBias
         self.logprobs = logprobs
+        self.maxTokens = maxTokens
         self.maxCompletionTokens = maxCompletionTokens
         self.metadata = metadata
         self.n = n
@@ -199,7 +209,7 @@ public struct OpenAIChatCompletionRequestBody: Encodable {
 // MARK: -
 extension OpenAIChatCompletionRequestBody {
     /// https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages
-    public enum Message: Encodable {
+    nonisolated public enum Message: Encodable, Sendable {
         /// Messages sent by the model in response to user messages
         ///
         /// - Parameters:
@@ -304,14 +314,14 @@ extension OpenAIChatCompletionRequestBody {
 
 // MARK: -
 extension OpenAIChatCompletionRequestBody.Message {
-    public enum MessageContent<
-        SingleType: Encodable,
-        PartsType: Encodable
-    >: Encodable, SingleOrPartsEncodable {
+    nonisolated public enum MessageContent<
+        SingleType: Encodable & Sendable,
+        PartsType: Encodable & Sendable
+    >: Encodable, Sendable, SingleOrPartsEncodable {
         case text(SingleType)
         case parts(PartsType)
 
-        var encodableItem: Encodable {
+        var encodableItem: Encodable & Sendable {
             switch self {
             case .text(let single): return single
             case .parts(let parts): return parts
@@ -322,7 +332,7 @@ extension OpenAIChatCompletionRequestBody.Message {
 
 // MARK: -
 extension OpenAIChatCompletionRequestBody.Message {
-    public enum ContentPart: Encodable {
+    nonisolated public enum ContentPart: Encodable, Sendable {
         /// The text content.
         case text(String)
 
@@ -372,7 +382,7 @@ extension OpenAIChatCompletionRequestBody.Message {
 
 // MARK: -
 extension OpenAIChatCompletionRequestBody.Message.ContentPart {
-    public enum ImageDetail: String, Encodable {
+    nonisolated public enum ImageDetail: String, Encodable, Sendable {
         case auto
         case low
         case high
@@ -381,7 +391,7 @@ extension OpenAIChatCompletionRequestBody.Message.ContentPart {
 
 // MARK: -
 extension OpenAIChatCompletionRequestBody.Message {
-    public struct ToolCall: Encodable {
+    nonisolated public struct ToolCall: Encodable, Sendable {
         /// The ID of the tool call.
         let id: String
 
@@ -405,7 +415,7 @@ extension OpenAIChatCompletionRequestBody.Message {
 extension OpenAIChatCompletionRequestBody.Message.ToolCall {
     /// Represents the 'Function' object at `messages > assistant message > tool_calls > function`
     /// https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages
-    public struct Function: Encodable {
+    nonisolated public struct Function: Encodable, Sendable {
         /// The name of the function that the assistant asked you to call.
         public let name: String
 
@@ -427,7 +437,7 @@ extension OpenAIChatCompletionRequestBody.Message.ToolCall {
 extension OpenAIChatCompletionRequestBody {
     /// An object specifying the format that the model must output. Compatible with GPT-4o, GPT-4o mini, GPT-4
     /// Turbo and all GPT-3.5 Turbo models newer than gpt-3.5-turbo-1106.
-    public enum ResponseFormat: Encodable {
+    nonisolated public enum ResponseFormat: Encodable, Sendable {
 
         /// Enables JSON mode, which ensures the message the model generates is valid JSON. Note, if you want to
         /// supply your own schema use `jsonSchema` instead.
@@ -453,11 +463,18 @@ extension OpenAIChatCompletionRequestBody {
         ///
         ///   - strict: Whether to enable strict schema adherence when generating the output. If set to true, the
         ///             model will always follow the exact schema defined in the schema field. Only a subset of JSON Schema
-        ///             is supported when strict is true. To learn more, read the Structured Outputs guide.
+        ///             is supported when strict is true. To learn more, read the Structured Outputs guide linked above.
         case jsonSchema(
             name: String,
             description: String? = nil,
             schema: [String: AIProxyJSONValue]? = nil,
+            strict: Bool? = nil
+        )
+
+        case generableJSONSchema(
+            name: String,
+            description: String? = nil,
+            schema: Encodable & Sendable,
             strict: Bool? = nil
         )
 
@@ -496,6 +513,21 @@ extension OpenAIChatCompletionRequestBody {
                 try nestedContainer.encodeIfPresent(description, forKey: .description)
                 try nestedContainer.encodeIfPresent(schema, forKey: .schema)
                 try nestedContainer.encodeIfPresent(strict, forKey: .strict)
+            case .generableJSONSchema(
+                name: let name,
+                description: let description,
+                schema: let schema,
+                strict: let strict
+            ):
+                try container.encode("json_schema", forKey: .type)
+                var nestedContainer = container.nestedContainer(
+                    keyedBy: SchemaKey.self,
+                    forKey: .jsonSchema
+                )
+                try nestedContainer.encode(name, forKey: .name)
+                try nestedContainer.encodeIfPresent(description, forKey: .description)
+                try nestedContainer.encodeIfPresent(schema, forKey: .schema)
+                try nestedContainer.encodeIfPresent(strict, forKey: .strict)
             case .text:
                 try container.encode("text", forKey: .type)
             }
@@ -505,7 +537,7 @@ extension OpenAIChatCompletionRequestBody {
 
 // MARK: -
 extension OpenAIChatCompletionRequestBody {
-    public struct StreamOptions: Encodable {
+    nonisolated public struct StreamOptions: Encodable, Sendable {
        /// If set, an additional chunk will be streamed before the data: [DONE] message.
        /// The usage field on this chunk shows the token usage statistics for the entire request,
        /// and the choices field will always be an empty array. All other chunks will also include
@@ -520,7 +552,7 @@ extension OpenAIChatCompletionRequestBody {
 
 // MARK: -
 extension OpenAIChatCompletionRequestBody {
-    public enum Tool: Encodable {
+    nonisolated public enum Tool: Encodable, Sendable {
 
         /// A function that chatGPT can instruct us to call when appropriate
         ///
@@ -548,6 +580,28 @@ extension OpenAIChatCompletionRequestBody {
             strict: Bool?
         )
 
+        case webSearch
+
+        /// Represents a Model Context Provider (MCP) tool integration.
+        ///
+        /// - Parameters:
+        ///   - serverLabel: A label identifying this external server.
+        ///   - serverUrl: The URL of the MCP server.
+        ///   - requireApproval: Whether calls to this tool require approval (`auto`, `manual`, or `never`).
+        ///   - allowedTools: (Optional) A list of tool names that are allowed to run on this MCP.
+        case mcp(
+            serverLabel: String,
+            serverUrl: String,
+            requireApproval: RequireApproval,
+            allowedTools: [String]? = nil
+        )
+
+        nonisolated public enum RequireApproval: String, Codable, Sendable {
+            case auto
+            case manual
+            case never
+        }
+
         private enum RootKey: CodingKey {
             case type
             case function
@@ -560,15 +614,23 @@ extension OpenAIChatCompletionRequestBody {
             case strict
         }
 
+        private enum MCPKey: String, CodingKey {
+            case type
+            case serverLabel = "server_label"
+            case serverUrl = "server_url"
+            case requireApproval = "require_approval"
+            case allowedTools = "allowed_tools"
+        }
+
         public func encode(to encoder: any Encoder) throws {
-            var container = encoder.container(keyedBy: RootKey.self)
             switch self {
             case .function(
-                name: let name,
-                description: let description,
-                parameters: let parameters,
-                strict: let strict
+                let name,
+                let description,
+                let parameters,
+                let strict
             ):
+                var container = encoder.container(keyedBy: RootKey.self)
                 try container.encode("function", forKey: .type)
                 var functionContainer = container.nestedContainer(
                     keyedBy: FunctionKey.self,
@@ -578,6 +640,23 @@ extension OpenAIChatCompletionRequestBody {
                 try functionContainer.encodeIfPresent(description, forKey: .description)
                 try functionContainer.encodeIfPresent(parameters, forKey: .parameters)
                 try functionContainer.encodeIfPresent(strict, forKey: .strict)
+
+            case .webSearch:
+                var container = encoder.container(keyedBy: RootKey.self)
+                try container.encode("web_search_preview", forKey: .type)
+
+            case .mcp(
+                let serverLabel,
+                let serverUrl,
+                let requireApproval,
+                let allowedTools
+            ):
+                var container = encoder.container(keyedBy: MCPKey.self)
+                try container.encode("mcp", forKey: .type)
+                try container.encode(serverLabel, forKey: .serverLabel)
+                try container.encode(serverUrl, forKey: .serverUrl)
+                try container.encode(requireApproval, forKey: .requireApproval)
+                try container.encodeIfPresent(allowedTools, forKey: .allowedTools)
             }
         }
     }
@@ -586,7 +665,7 @@ extension OpenAIChatCompletionRequestBody {
 // MARK: -
 extension OpenAIChatCompletionRequestBody {
     /// Controls which (if any) tool is called by the model.
-    public enum ToolChoice: Encodable {
+    nonisolated public enum ToolChoice: Encodable, Sendable {
 
         /// The model will not call any tool and instead generates a message.
         /// This is the default when no tools are present in the request body
@@ -636,23 +715,23 @@ extension OpenAIChatCompletionRequestBody {
 }
 
 extension OpenAIChatCompletionRequestBody {
-    public struct WebSearchOptions: Encodable {
-        
-        public enum SearchContextSize: String, Encodable {
+    nonisolated public struct WebSearchOptions: Encodable, Sendable {
+
+        nonisolated public enum SearchContextSize: String, Encodable, Sendable {
             case low
             case medium
             case high
         }
-        
-        public struct UserLocation: Encodable {
-            
-            public struct Approximate: Encodable {
+
+        nonisolated public struct UserLocation: Encodable, Sendable {
+
+            nonisolated public struct Approximate: Encodable, Sendable {
                 let city: String?
                 let country: String?
                 let region: String?
                 let timezone: String?
                 let type = "approximate"
-                
+
                 public init(
                     city: String? = nil,
                     country: String? = nil,
@@ -665,22 +744,22 @@ extension OpenAIChatCompletionRequestBody {
                     self.timezone = timezone
                 }
             }
-            
+
             let approximate: Approximate
-            
+
             public init(approximate: Approximate) {
                 self.approximate = approximate
             }
         }
-        
+
         let searchContextSize: SearchContextSize?
         let userLocation: UserLocation?
-        
+
         private enum CodingKeys: String, CodingKey {
             case searchContextSize = "search_context_size"
             case userLocation = "user_location"
         }
-        
+
         public init(
             searchContextSize: SearchContextSize?,
             userLocation: UserLocation?

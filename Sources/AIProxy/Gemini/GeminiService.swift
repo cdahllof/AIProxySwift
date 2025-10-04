@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol GeminiService {
+@AIProxyActor public protocol GeminiService: Sendable {
 
     /// Generate content using Gemini. Google puts chat completions, audio transcriptions, and
     /// video capabilities all under the term 'generate content':
@@ -25,12 +25,28 @@ public protocol GeminiService {
         secondsToWait: UInt
     ) async throws -> GeminiGenerateContentResponseBody
 
+    /// Generate content using Gemini and stream the response. Google puts chat completions, audio transcriptions, and
+    /// video capabilities all under the term 'generate content':
+    /// https://ai.google.dev/api/generate-content#method:-models.generatecontent
+    /// - Parameters:
+    ///   - body: Request body
+    ///   - model: The model to use for generating the completion, e.g. "gemini-1.5-flash"
+    ///   - secondsToWait: Seconds to wait before raising `URLError.timedOut`.
+    ///                    Use `60` if you'd like to be consistent with the default URLSession timeout.
+    ///                    Use a longer timeout if you expect your generations to take longer than sixty seconds.
+    /// - Returns: An async sequence of partial content responses. Gemini reuses the same data type for buffered and streaming responses:
+    ///            https://ai.google.dev/api/generate-content#v1beta.GenerateContentResponse
+    func generateStreamingContentRequest(
+        body: GeminiGenerateContentRequestBody,
+        model: String,
+        secondsToWait: UInt
+    ) async throws -> AsyncThrowingStream<GeminiGenerateContentResponseBody, Error>
+
     /// Generate images with the Imagen API
     func makeImagenRequest(
         body: GeminiImagenRequestBody,
         model: String
     ) async throws -> GeminiImagenResponseBody
-
 
     /// Uploads a file to Google's short term storage.
     ///
@@ -65,6 +81,37 @@ public protocol GeminiService {
     func getStatus(
         fileURL: URL
     ) async throws -> GeminiFile
+    
+    /// Creates a batch job for processing multiple requests asynchronously
+    /// - Parameters:
+    ///   - body: The batch request body containing the file name and configuration
+    ///   - model: The model to use for the batch processing, e.g. "gemini-1.5-flash"
+    /// - Returns: A batch job response containing the job details
+    func createBatchJob(
+        body: GeminiBatchRequestBody,
+        model: String
+    ) async throws -> GeminiBatchResponseBody
+    
+    /// Gets the status of a batch job
+    /// - Parameter batchJobName: The name of the batch job to check
+    /// - Returns: The current status of the batch job
+    func getBatchJobStatus(
+        batchJobName: String
+    ) async throws -> GeminiBatchResponseBody
+    
+    /// Downloads the completed batch job results file
+    /// - Parameter responsesFileName: The name of the responses file from the batch job status (e.g., from batch.response.responsesFile)
+    /// - Returns: The raw data of the results file in JSONL format
+    func downloadBatchResults(
+        responsesFileName: String
+    ) async throws -> Data
+    
+    /// Cancels a batch job
+    /// - Parameter batchJobName: The name of the batch job to cancel
+    /// - Returns: The updated status of the cancelled batch job
+    func cancelBatchJob(
+        batchJobName: String
+    ) async throws -> GeminiBatchResponseBody
 }
 
 extension GeminiService {
@@ -91,6 +138,34 @@ extension GeminiService {
             case .processing:
                 try await Task.sleep(nanoseconds: secondsBetweenPollAttempts * 1_000_000_000)
             case .active:
+                return response
+            }
+        }
+        throw GeminiError.reachedRetryLimit
+    }
+    
+    /// Polls for the completion of a batch job
+    ///
+    /// - Parameters:
+    ///   - batchJobName: The name of the batch job to poll for completion
+    ///   - pollAttempts: The number of times to poll before `GeminiError.reachedRetryLimit` is raised
+    ///   - secondsBetweenPollAttempts: The number of seconds between polls
+    ///
+    /// - Returns: A batch response with a final status (succeeded, failed, cancelled, or expired)
+    public func pollForBatchJobComplete(
+        batchJobName: String,
+        pollAttempts: Int = 60,
+        secondsBetweenPollAttempts: UInt64 = 300
+    ) async throws -> GeminiBatchResponseBody {
+        try await Task.sleep(nanoseconds: secondsBetweenPollAttempts * 1_000_000_000)
+        for _ in 0..<pollAttempts {
+            let response = try await self.getBatchJobStatus(
+                batchJobName: batchJobName
+            )
+            switch response.state {
+            case .pending, .running:
+                try await Task.sleep(nanoseconds: secondsBetweenPollAttempts * 1_000_000_000)
+            case .succeeded, .failed, .cancelled, .expired, .unspecified, .none:
                 return response
             }
         }

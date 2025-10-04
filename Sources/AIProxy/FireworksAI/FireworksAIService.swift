@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol FireworksAIService {
+@AIProxyActor public protocol FireworksAIService: Sendable {
 
     /// Initiates a non-streaming chat completion request to DeepSeek R1 at api.fireworks.ai/inference/v1/chat/completions
     ///
@@ -35,5 +35,5 @@ public protocol FireworksAIService {
     func streamingDeepSeekR1Request(
         body: DeepSeekChatCompletionRequestBody,
         secondsToWait: UInt
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, DeepSeekChatCompletionChunk>
+    ) async throws -> AsyncThrowingStream<DeepSeekChatCompletionChunk, Error>
 }

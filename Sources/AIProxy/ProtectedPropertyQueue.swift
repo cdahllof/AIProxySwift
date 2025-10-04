@@ -7,7 +7,20 @@
 
 import Foundation
 
-internal let protectedPropertyQueue = DispatchQueue(
-    label: "aiproxy-protected-property-queue",
-    attributes: .concurrent
-)
+nonisolated enum ProtectedPropertyQueue {
+
+    static let configuration = DispatchQueue(
+        label: "aiproxy-protected-configuration",
+        attributes: .concurrent
+    )
+
+    static let callerDesiredLogLevel = DispatchQueue(
+        label: "aiproxy-protected-caller-desired-log-level",
+        attributes: .concurrent
+    )
+
+    static let progressCallback = DispatchQueue(
+        label: "aiproxy-protected-progress-callback",
+        attributes: .concurrent
+    )
+}

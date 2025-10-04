@@ -8,11 +8,14 @@
 import Foundation
 import AVFoundation
 
-@RealtimeActor
-open class OpenAIRealtimeSession {
+nonisolated private let kWebsocketDisconnectedErrorCode = 57
+nonisolated private let kWebsocketDisconnectedEarlyThreshold: TimeInterval = 3
+
+@AIProxyActor open class OpenAIRealtimeSession {
     private var isTearingDown = false
     private let webSocketTask: URLSessionWebSocketTask
     private var continuation: AsyncStream<OpenAIRealtimeMessage>.Continuation?
+    private let setupTime = Date()
     let sessionConfiguration: OpenAIRealtimeSessionConfiguration
 
     // Ping timer properties
@@ -62,7 +65,6 @@ open class OpenAIRealtimeSession {
 
     /// Close the websocket connection
     public func disconnect() {
-        logIf(.debug)?.debug("Disconnecting from realtime session")
         self.isTearingDown = true
         self.continuation?.finish()
         self.continuation = nil
@@ -116,11 +118,19 @@ open class OpenAIRealtimeSession {
         guard !isTearingDown else {
             return
         }
-        if error.code == 57 {
-            logIf(.warning)?.warning("WS disconnected. Check that your AIProxy project is websocket enabled and you've followed the DeviceCheck integration guide")
-        } else {
+
+        switch error.code {
+        case kWebsocketDisconnectedErrorCode:
+            let disconnectedEarly = Date().timeIntervalSince(setupTime) <= kWebsocketDisconnectedEarlyThreshold
+            if disconnectedEarly {
+                logIf(.warning)?.warning("AIProxy: websocket disconnected immediately. Check that you've followed the DeviceCheck integration guide at https://www.aiproxy.com/docs/integration-guide.html")
+            } else {
+                logIf(.debug)?.debug("AIProxy: websocket disconnected normally")
+            }
+        default:
             logIf(.error)?.error("Received ws error: \(error.localizedDescription)")
         }
+
         self.disconnect()
     }
 
@@ -184,7 +194,39 @@ open class OpenAIRealtimeSession {
             self.continuation?.yield(.responseDone)
         case "response.audio.done":
             self.continuation?.yield(.responseAudioDone)
+/* =======
+        
+        // New cases for handling transcription messages
+        case "response.audio_transcript.delta":
+            if let delta = json["delta"] as? String {
+                self.continuation?.yield(.responseTranscriptDelta(delta))
+            }
+            
+        case "response.audio_transcript.done":
+            if let transcript = json["transcript"] as? String {
+                self.continuation?.yield(.responseTranscriptDone(transcript))
+            }
+            
+        case "input_audio_buffer.transcript":
+            if let transcript = json["transcript"] as? String {
+                self.continuation?.yield(.inputAudioBufferTranscript(transcript))
+            }
+            
+        case "conversation.item.input_audio_transcription.delta":
+            if let delta = json["delta"] as? String {
+                self.continuation?.yield(.inputAudioTranscriptionDelta(delta))
+            }
+            
+        case "conversation.item.input_audio_transcription.completed":
+            if let transcript = json["transcript"] as? String {
+                self.continuation?.yield(.inputAudioTranscriptionCompleted(transcript))
+            }
+            
+>>>>>>> upstream/main
+ */
         default:
+            // Log unhandled message types for debugging
+            logIf(.debug)?.debug("Unhandled message type: \(messageType) - \(json)")
             break
         }
 

@@ -7,14 +7,14 @@
 
 import Foundation
 
-open class PerplexityProxiedService: PerplexityService, ProxiedService {
+@AIProxyActor final class PerplexityProxiedService: PerplexityService, ProxiedService, Sendable {
     private let partialKey: String
     private let serviceURL: String
     private let clientID: String?
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.perplexityService` defined in AIProxy.swift
-    internal init(
+    nonisolated init(
         partialKey: String,
         serviceURL: String,
         clientID: String?
@@ -59,7 +59,7 @@ open class PerplexityProxiedService: PerplexityService, ProxiedService {
     /// - Returns: An async sequence of completion chunks.
     public func streamingChatCompletionRequest(
         body: PerplexityChatCompletionRequestBody
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, PerplexityChatCompletionResponseBody> {
+    ) async throws -> AsyncThrowingStream<PerplexityChatCompletionResponseBody, Error> {
         var body = body
         body.stream = true
         let request = try await AIProxyURLRequest.create(

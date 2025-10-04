@@ -3,14 +3,14 @@
 
 import Foundation
 
-open class GeminiProxiedService: GeminiService, ProxiedService {
+@AIProxyActor final class GeminiProxiedService: GeminiService, ProxiedService, Sendable {
     private let partialKey: String
     private let serviceURL: String
     private let clientID: String?
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.geminiService` defined in AIProxy.swift
-    internal init(
+    nonisolated init(
         partialKey: String,
         serviceURL: String,
         clientID: String?
@@ -47,6 +47,36 @@ open class GeminiProxiedService: GeminiService, ProxiedService {
             contentType: "application/json"
         )
         return try await self.makeRequestAndDeserializeResponse(request)
+    }
+
+    /// Generate content using Gemini and stream the response. Google puts chat completions, audio transcriptions, and
+    /// video capabilities all under the term 'generate content':
+    /// https://ai.google.dev/api/generate-content#method:-models.generatecontent
+    /// - Parameters:
+    ///   - body: Request body
+    ///   - model: The model to use for generating the completion, e.g. "gemini-1.5-flash"
+    ///   - secondsToWait: Seconds to wait before raising `URLError.timedOut`.
+    ///                    Use `60` if you'd like to be consistent with the default URLSession timeout.
+    ///                    Use a longer timeout if you expect your generations to take longer than sixty seconds.
+    /// - Returns: An async sequence of partial content responses. Gemini reuses the same data type for buffered and streaming responses:
+    ///            https://ai.google.dev/api/generate-content#v1beta.GenerateContentResponse
+    public func generateStreamingContentRequest(
+        body: GeminiGenerateContentRequestBody,
+        model: String,
+        secondsToWait: UInt
+    ) async throws -> AsyncThrowingStream<GeminiGenerateContentResponseBody, Error> {
+        let proxyPath = "/v1beta/models/\(model):streamGenerateContent?alt=sse"
+        let request = try await AIProxyURLRequest.create(
+            partialKey: self.partialKey,
+            serviceURL: self.serviceURL,
+            clientID: self.clientID,
+            proxyPath: proxyPath,
+            body:  body.serialize(),
+            verb: .post,
+            secondsToWait: secondsToWait,
+            contentType: "application/json"
+        )
+        return try await self.makeRequestAndDeserializeStreamingChunks(request)
     }
 
     /// Generate images with the Imagen API
@@ -159,5 +189,92 @@ open class GeminiProxiedService: GeminiService, ProxiedService {
             request
         )
         return try GeminiFile.deserialize(from: data)
+    }
+    
+    /// Creates a batch job for processing multiple requests asynchronously
+    /// - Parameters:
+    ///   - body: The batch request body containing the file name and configuration
+    ///   - model: The model to use for the batch processing, e.g. "gemini-1.5-flash"
+    /// - Returns: A batch job response containing the job details
+    public func createBatchJob(
+        body: GeminiBatchRequestBody,
+        model: String
+    ) async throws -> GeminiBatchResponseBody {
+        let proxyPath = "/v1beta/models/\(model):batchGenerateContent"
+        let request = try await AIProxyURLRequest.create(
+            partialKey: self.partialKey,
+            serviceURL: self.serviceURL,
+            clientID: self.clientID,
+            proxyPath: proxyPath,
+            body: body.serialize(),
+            verb: .post,
+            secondsToWait: 60,
+            contentType: "application/json"
+        )
+        return try await self.makeRequestAndDeserializeResponse(request)
+    }
+    
+    /// Gets the status of a batch job
+    /// - Parameter batchJobName: The name of the batch job to check
+    /// - Returns: The current status of the batch job
+    public func getBatchJobStatus(
+        batchJobName: String
+    ) async throws -> GeminiBatchResponseBody {
+        let proxyPath = "/v1beta/\(batchJobName)"
+        let request = try await AIProxyURLRequest.create(
+            partialKey: self.partialKey,
+            serviceURL: self.serviceURL,
+            clientID: self.clientID,
+            proxyPath: proxyPath,
+            body: nil,
+            verb: .get,
+            secondsToWait: 60,
+            contentType: "application/json"
+        )
+        return try await self.makeRequestAndDeserializeResponse(request)
+    }
+    
+    /// Cancels a batch job
+    /// - Parameter batchJobName: The name of the batch job to cancel
+    /// - Returns: The updated status of the cancelled batch job
+    public func cancelBatchJob(
+        batchJobName: String
+    ) async throws -> GeminiBatchResponseBody {
+        let proxyPath = "/v1beta/\(batchJobName):cancel"
+        let request = try await AIProxyURLRequest.create(
+            partialKey: self.partialKey,
+            serviceURL: self.serviceURL,
+            clientID: self.clientID,
+            proxyPath: proxyPath,
+            body: nil,
+            verb: .post,
+            secondsToWait: 60,
+            contentType: "application/json"
+        )
+        return try await self.makeRequestAndDeserializeResponse(request)
+    }
+    
+    /// Downloads the completed batch job results file
+    /// - Parameter responsesFileName: The name of the responses file from the batch job status (e.g., from batch.response.responsesFile or batch.dest.fileName)
+    /// - Returns: The raw data and response of the results file in JSONL format
+    public func downloadBatchResults(
+        responsesFileName fileName: String
+    ) async throws -> Data {
+        let proxyPath = "/v1beta/\(fileName):download?alt=media"
+        let request = try await AIProxyURLRequest.create(
+            partialKey: self.partialKey,
+            serviceURL: self.serviceURL,
+            clientID: self.clientID,
+            proxyPath: proxyPath,
+            body: nil,
+            verb: .get,
+            secondsToWait: 60,
+            contentType: "application/json"
+        )
+        let (data, _) = try await BackgroundNetworker.makeRequestAndWaitForData(
+            self.urlSession,
+            request
+        )
+        return data
     }
 }

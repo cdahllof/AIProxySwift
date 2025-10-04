@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol TogetherAIService {
+@AIProxyActor public protocol TogetherAIService: Sendable {
     /// Initiates a non-streaming chat completion request to /v1/chat/completions.
     ///
     /// - Parameters:
@@ -16,7 +16,8 @@ public protocol TogetherAIService {
     /// - Returns: A ChatCompletionResponse. See this reference:
     ///            https://platform.openai.com/docs/api-reference/chat/object
     func chatCompletionRequest(
-        body: TogetherAIChatCompletionRequestBody
+        body: TogetherAIChatCompletionRequestBody,
+        secondsToWait: UInt
     ) async throws -> TogetherAIChatCompletionResponseBody
 
     /// Initiates a streaming chat completion request to /v1/chat/completions.
@@ -27,5 +28,5 @@ public protocol TogetherAIService {
     /// - Returns: A chat completion response. See the reference above.
     func streamingChatCompletionRequest(
         body: TogetherAIChatCompletionRequestBody
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, OpenAIChatCompletionChunk>
+    ) async throws -> AsyncThrowingStream<OpenAIChatCompletionChunk, Error>
 }

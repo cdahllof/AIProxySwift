@@ -7,12 +7,12 @@
 
 import Foundation
 
-open class PerplexityDirectService: PerplexityService, DirectService {
+@AIProxyActor final class PerplexityDirectService: PerplexityService, DirectService, Sendable {
     private let unprotectedAPIKey: String
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.perplexityDirectService` defined in AIProxy.swift
-    internal init(
+    nonisolated init(
         unprotectedAPIKey: String
     ) {
         self.unprotectedAPIKey = unprotectedAPIKey
@@ -54,7 +54,7 @@ open class PerplexityDirectService: PerplexityService, DirectService {
     /// - Returns: An async sequence of completion chunks.
     public func streamingChatCompletionRequest(
         body: PerplexityChatCompletionRequestBody
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, PerplexityChatCompletionResponseBody> {
+    ) async throws -> AsyncThrowingStream<PerplexityChatCompletionResponseBody, Error> {
         var body = body
         body.stream = true
         let request = try AIProxyURLRequest.createDirect(

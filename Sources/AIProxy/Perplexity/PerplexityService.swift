@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol PerplexityService {
+@AIProxyActor public protocol PerplexityService: Sendable {
     /// Initiates a non-streaming chat completion request to Perplexity
     ///
     /// - Parameters:
@@ -29,5 +29,5 @@ public protocol PerplexityService {
     /// - Returns: An async sequence of completion chunks.
     func streamingChatCompletionRequest(
         body: PerplexityChatCompletionRequestBody
-    ) async throws -> AsyncCompactMapSequence<AsyncLineSequence<URLSession.AsyncBytes>, PerplexityChatCompletionResponseBody>
+    ) async throws -> AsyncThrowingStream<PerplexityChatCompletionResponseBody, Error>
 }
