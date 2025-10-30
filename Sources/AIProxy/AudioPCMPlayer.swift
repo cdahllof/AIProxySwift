@@ -116,7 +116,7 @@ open class AudioPCMPlayer {
             // in `playPCM16Audio` below
             try? AVAudioSession.sharedInstance().setCategory(
                 .playAndRecord,
-                mode: .voiceChat,
+                mode: .default,
                 options: [.defaultToSpeaker, .allowBluetooth]
             )
         }
